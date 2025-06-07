@@ -11,23 +11,29 @@
     <style>
         /* S'assure que html et body occupent toute la hauteur disponible pour une mise en page flexible */
         html, body {
-            height: 100%;
+            height: 100%; /* Indispensable pour que le body prenne la hauteur de la fenêtre */
             margin: 0;
-            background: linear-gradient(to bottom right, #1e0a3b, #4a0e6e); /* Fond dégradé du corps */
+            padding: 0; /* Élimine tout padding par défaut qui pourrait causer un overflow non désiré */
+            /* Le background est mis sur le body pour un dégradé qui couvre toute la page */
+            background: linear-gradient(to bottom right, #1e0a3b, #4a0e6e);
+            /* Permet au body de défiler si son contenu dépasse la hauteur de la fenêtre */
+            overflow-y: auto;
         }
         /* Assure que l'application conteneur s'adapte à l'écran et permet le défilement */
         #app-container {
             display: flex;
             flex-direction: column;
             align-items: center;
-            /* Changement ici: justify-content: flex-start permet au contenu de commencer en haut
-               et de pousser vers le bas, activant le défilement si nécessaire */
+            /* Le contenu commence en haut et s'étend vers le bas */
             justify-content: flex-start;
-            height: 100vh; /* Définie la hauteur du conteneur à 100% du viewport */
+            /* Définit une hauteur minimale de 100% de la hauteur de la fenêtre,
+               mais permet au conteneur de grandir si le contenu dépasse */
+            min-height: 100vh;
             width: 100vw;
-            background: linear-gradient(to bottom right, #1e0a3b, #4a0e6e);
+            /* Fond transparent pour laisser voir le dégradé du body */
+            background: transparent; 
             position: relative; /* Pour positionner les messages absolus */
-            overflow-y: auto; /* Permet le défilement vertical du conteneur principal si le contenu dépasse */
+            /* Retiré overflow-y: auto d'ici, car le body le gère maintenant */
             padding-top: 20px; /* Ajoute un peu d'espace en haut pour le confort */
             padding-bottom: 20px; /* Ajoute un peu d'espace en bas pour le confort */
         }
@@ -45,10 +51,9 @@
             display: block; /* Supprime l'espace sous le canvas */
         }
         /* Styles pour les sections de menu: elles sont masquées par défaut et contrôlées par JS.
-           Elles ne gèrent plus leur propre défilement, c'est #app-container qui le fait. */
+           Elles n'ont plus de règles de défilement ou de hauteur fixe, elles grandissent avec leur contenu. */
         #main-menu, #customize-skins, #shop, #victory-screen, #death-screen {
             display: none; /* Sera géré par JavaScript updateUI() */
-            /* Assurez-vous qu'il n'y a PAS de max-height ou overflow-y: auto ici */
         }
         /* Écran de chargement visible par défaut */
         #loading-screen {
@@ -300,7 +305,7 @@
             level: 1,
             xp: 0,
             gold: 0,
-            currentSkin: '🎧',
+            currentSkin: '�',
             ownedSkins: ['🎧'],
             userId: 'local-player', // Utilisateur local par défaut pour l'affichage
             fillColor: '#FFD700', // Nouvelle propriété: couleur de remplissage par défaut (or)
@@ -569,7 +574,7 @@
                         // Assurez-vous que le currentSkin est valide ou réinitialisez-le
                         currentSkin: parsedData.currentSkin && SHOP_SKINS.some(s => s.emoji === parsedData.currentSkin)
                             ? parsedData.currentSkin
-                            : '�',
+                            : '🎧',
                         // Assurez-vous que l'XP et le niveau sont cohérents
                         level: Math.max(1, parsedData.level || 1),
                         xp: Math.max(0, parsedData.xp || 0),
