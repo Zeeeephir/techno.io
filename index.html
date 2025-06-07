@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>techno.io</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            overflow: hidden; /* Empêche le défilement et permet au canvas de prendre toute la place */
+            background: linear-gradient(to bottom right, #1e0a3b, #4a0e6e); /* Fond dégradé du corps */
+        }
+        /* Assure que l'application conteneur s'adapte à l'écran */
+        #app-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            width: 100vw;
+            background: linear-gradient(to bottom right, #1e0a3b, #4a0e6e);
+            position: relative; /* Pour positionner les messages absolus */
+        }
+        /* Conteneur du jeu en plein écran, caché par défaut */
+        #game-canvas-container {
+            position: fixed; /* Fixe le conteneur du jeu sur tout l'écran */
+            inset: 0;
+            background-color: #1a1a2e; /* Couleur de fond du jeu */
+            display: none; /* CORRECTION: Masqué par défaut avec display:none */
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        canvas {
+            display: block; /* Supprime l'espace sous le canvas */
+        }
+        /* Styles pour les sections, masquées par défaut en HTML pour éviter le FOUC */
+        #customize-skins, #shop, #victory-screen, #death-screen {
+            display: none;
+        }
+        /* Animations */
+        @keyframes fadeInOut {
+            0% { opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        .animate-fade-in-out {
+            animation: fadeInOut 3s forwards;
+        }
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {
+                transform: translateY(0);
+            }
+            40% {
+                transform: translateY(-10px);
+            }
+            60% {
+                transform: translateY(-5px);
+            }
+        }
+        .animate-bounce {
+            animation: bounce 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .animate-fade-in-up {
+            animation: fadeIn 0.5s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container" class="text-white">
+        <!-- Titre global de l'application -->
+        <h1 id="global-title" class="text-6xl font-extrabold mb-8 drop-shadow-lg text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600 text-center pt-8">
+            techno.io
+        </h1>
+
+        <!-- Message temporaire -->
+        <div id="message-display" class="absolute top-4 bg-yellow-400 text-black px-6 py-3 rounded-full shadow-lg z-50 animate-bounce transition-all duration-300 hidden"></div>
+
+        <!-- ID Utilisateur (pour débogage) -->
+        <div id="user-id-display" class="mb-4 text-sm text-gray-300 text-center"></div>
+
+        <!-- Section Menu Principal -->
+        <div id="main-menu" class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md text-center border border-purple-700 transform hover:scale-105 transition-transform duration-300">
+            <h2 class="text-4xl font-bold mb-6 text-purple-400">Menu Principal</h2>
+            <div class="mb-6">
+                <label for="nickname-input" class="block text-xl font-semibold mb-2 text-gray-300">
+                    Pseudo:
+                </label>
+                <input
+                    id="nickname-input"
+                    type="text"
+                    value="JoueurDJ"
+                    class="w-full p-3 bg-gray-700 text-white rounded-lg border border-purple-500 focus:outline-none focus:ring-2 focus:ring-pink-500 text-center"
+                    maxlength="15"
+                />
+            </div>
+            <div class="text-lg mb-4 text-gray-300">
+                Niveau: <span id="player-level" class="font-bold text-yellow-400">1</span> | XP: <span id="player-xp" class="font-bold text-blue-400">0</span> | Or: <span id="player-gold" class="font-bold text-green-400">0</span>
+            </div>
+
+            <div class="mb-6">
+                <label for="difficulty-select" class="block text-xl font-semibold mb-2 text-gray-300">
+                    Difficulté des Bots:
+                </label>
+                <select
+                    id="difficulty-select"
+                    class="w-full p-3 bg-gray-700 text-white rounded-lg border border-purple-500 focus:outline-none focus:ring-2 focus:ring-pink-500 text-center"
+                >
+                    <option value="easy">Facile</option>
+                    <option value="normal">Normale</option>
+                    <option value="hard">Difficile</option>
+                </select>
+            </div>
+
+            <button id="play-button" class="w-full bg-gradient-to-r from-pink-500 to-red-500 text-white text-2xl font-bold py-4 rounded-xl shadow-lg hover:from-pink-600 hover:to-red-600 transition-all duration-300 transform hover:scale-105 mb-4 border border-pink-700">
+                Jouer
+            </button>
+            <button id="customize-button" class="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xl font-semibold py-3 rounded-xl shadow-md hover:from-blue-600 hover:to-purple-600 transition-all duration-300 transform hover:scale-105 mb-4 border border-blue-700">
+                Personnaliser Skin (<span id="current-skin-display">🎧</span>)
+            </button>
+            <button id="shop-button" class="w-full bg-gradient-to-r from-green-500 to-teal-500 text-white text-xl font-semibold py-3 rounded-xl shadow-md hover:from-green-600 hover:to-teal-600 transition-all duration-300 transform hover:scale-105 border border-green-700">
+                Boutique
+            </button>
+        </div>
+
+        <!-- Section Personnaliser Skins -->
+        <div id="customize-skins" class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-lg text-center border border-purple-700">
+            <h2 class="text-4xl font-bold mb-6 text-purple-400">Personnaliser Votre DJ</h2>
+            <div id="skins-grid" class="grid grid-cols-3 gap-4 mb-6"></div>
+            <button id="customize-back-button" class="w-full bg-gradient-to-r from-gray-600 to-gray-800 text-white text-xl font-semibold py-3 rounded-xl shadow-md hover:from-gray-700 hover:to-gray-900 transition-all duration-300 transform hover:scale-105 border border-gray-500">
+                Retour au Menu
+            </button>
+        </div>
+
+        <!-- Section Boutique -->
+        <div id="shop" class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-lg text-center border border-purple-700">
+            <h2 class="text-4xl font-bold mb-6 text-purple-400">Boutique de Skins</h2>
+            <p class="text-xl mb-6 text-yellow-400">Votre Or: <span id="shop-player-gold" class="font-bold"></span></p>
+            <div id="shop-skins-grid" class="grid grid-cols-2 gap-4 mb-6"></div>
+            <p id="shop-no-skins-message" class="text-lg text-gray-300 mb-6 hidden">Vous possédez déjà tous les skins disponibles !</p>
+            <button id="shop-back-button" class="w-full bg-gradient-to-r from-gray-600 to-gray-800 text-white text-xl font-semibold py-3 rounded-xl shadow-md hover:from-gray-700 hover:to-gray-900 transition-all duration-300 transform hover:scale-105 border border-gray-500">
+                Retour au Menu
+            </button>
+        </div>
+
+        <!-- Section Jeu (Canvas) -->
+        <div id="game-canvas-container">
+            <canvas id="game-canvas"></canvas>
+
+            <!-- Scoreboard en jeu -->
+            <div id="scoreboard" class="absolute top-4 left-4 bg-gray-800 bg-opacity-80 p-4 rounded-lg shadow-lg text-white z-20 border border-purple-700">
+                <p class="text-lg font-semibold mb-2">Votre taille: <span id="current-player-size" class="font-bold text-gray-300">0</span></p>
+                <p class="text-lg font-semibold mb-2">Joueurs restants: <span id="remaining-players-count" class="font-bold text-yellow-400">0</span></p>
+                <p class="text-lg font-semibold">Plus grand joueur: <span id="largest-player-info" class="font-bold text-green-400"></span></p>
+                <p class="text-lg font-semibold mt-2">Missile: <span id="missile-cooldown" class="font-bold text-pink-400">PRÊT !</span></p>
+                <p class="text-lg font-semibold">Kills: <span id="player-kills-display" class="font-bold text-blue-400">0</span></p>
+            </div>
+
+            <button id="quit-game-button" class="absolute bottom-4 right-4 bg-red-600 text-white text-xl font-semibold py-3 px-8 rounded-xl shadow-md hover:bg-red-700 transition-all duration-300 transform hover:scale-105 border border-red-700 z-20">
+                Quitter le Jeu
+            </button>
+
+            <button id="fullscreen-button" class="absolute bottom-4 left-4 bg-blue-600 text-white text-xl font-semibold py-3 px-8 rounded-xl shadow-md hover:bg-blue-700 transition-all duration-300 transform hover:scale-105 border border-blue-700 z-20">
+                Plein Écran
+            </button>
+        </div>
+
+        <!-- Section Victoire -->
+        <div id="victory-screen" class="flex flex-col items-center justify-center p-8 rounded-xl shadow-2xl bg-gradient-to-br from-purple-800 to-pink-700 w-full max-w-lg text-center border-4 border-yellow-400 animate-fade-in-up">
+            <h2 class="text-5xl font-extrabold mb-6 text-white drop-shadow-lg animate-bounce">VICTOIRE ! 👑</h2>
+            <p class="text-2xl font-bold mb-4 text-green-300">Vous êtes le TOP 1 DJ !</p>
+
+            <div class="w-full bg-gray-700 rounded-full h-8 mb-4 overflow-hidden border-2 border-gray-500">
+                <div id="xp-bar-fill" class="bg-blue-500 h-full flex items-center justify-center text-lg font-bold text-white transition-all duration-300 ease-out" style="width: 0%;">
+                    XP: <span id="animated-xp">0</span> / <span id="next-level-xp">100</span>
+                </div>
+            </div>
+
+            <p class="text-2xl font-bold mb-4 text-yellow-300">Niveau: <span id="animated-level" class="text-white">1</span></p>
+            <p class="text-3xl font-bold mb-6 text-yellow-400">Or total: <span id="animated-gold" class="text-white">0</span></p>
+
+            <p class="text-xl text-gray-200">Gagné cette partie: <span id="earned-xp-display" class="font-bold text-green-300">0 XP</span> et <span id="earned-gold-display" class="font-bold text-yellow-300">0 Or</span></p>
+        </div>
+
+        <!-- Section Mort -->
+        <div id="death-screen" class="flex flex-col items-center justify-center p-8 rounded-xl shadow-2xl bg-gradient-to-br from-red-800 to-gray-900 w-full max-w-lg text-center border-4 border-red-500 animate-fade-in-up">
+            <h2 class="text-5xl font-extrabold mb-6 text-white drop-shadow-lg animate-pulse">GAME OVER... 💀</h2>
+            <p class="text-2xl font-bold mb-4 text-gray-300">Votre DJ a été éliminé !</p>
+            <p class="text-xl text-gray-200">Kills: <span id="death-kills-display" class="font-bold text-blue-300">0</span> | Rang: <span id="death-rank-display" class="font-bold text-yellow-300">0</span></p>
+            <p class="text-xl text-gray-200">Gagné cette partie: <span id="death-earned-xp-display" class="font-bold text-blue-300">0 XP</span> et <span id="death-earned-gold-display" class="font-bold text-yellow-300">0 Or</span></p>
+            <p class="mt-4 text-lg text-gray-400">Retour au menu dans quelques instants...</p>
+        </div>
+
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Variables globales fournies par l'environnement Canvas
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-techno-io-app';
+
+        // Constantes du jeu
+        const GAME_WIDTH = 3000;
+        const GAME_HEIGHT = 3000;
+        const PLAYER_INITIAL_RADIUS = 20;
+        const BOT_INITIAL_RADIUS_RANGE = [10, 30];
+        const FOOD_COUNT = 500;
+        const FOOD_RADIUS = 5;
+        const BOT_COUNT = 99;
+        const SHOP_SKINS = [
+            { id: 'skin1', emoji: '🎧', name: 'Casque Pro', cost: 0 },
+            { id: 'skin2', emoji: '🎤', name: 'Micro Vintage', cost: 100 },
+            { id: 'skin3', emoji: '🔊', name: 'Grosse Enceinte', cost: 250 },
+            { id: 'skin4', emoji: '🎶', name: 'Note de Musique', cost: 500 },
+            { id: 'skin5', emoji: '💿', name: 'Vinyle Doré', cost: 1000 },
+            { id: 'skin6', emoji: '🎛️', name: 'Table de Mixage', cost: 2000 },
+        ];
+
+        // États de l'application (variables globales)
+        let currentPage = 'menu'; // Démarre toujours au menu
+        let playerData = {
+            nickname: 'JoueurDJ',
+            level: 1,
+            xp: 0,
+            gold: 0,
+            currentSkin: '🎧',
+            ownedSkins: ['🎧'],
+            userId: null,
+        };
+        let difficulty = 'normal';
+        let isLoading = true; // Pour l'écran de chargement initial
+        let messageTimeoutId = null; // Pour les messages temporaires
+        let lastGameRewards = { xp: 0, gold: 0, isWinner: false, kills: 0, finalRank: 0 };
+
+        // Variables du jeu (globales pour le canvas)
+        let canvas, ctx;
+        let animationFrameId = null;
+        let gameRunning = false;
+        let players = []; // Tous les joueurs (humain + bots)
+        let food = [];
+        let currentPlayerSize = PLAYER_INITIAL_RADIUS;
+        let lastMousePos = { x: 0, y: 0 };
+        let cameraOffset = { x: 0, y: 0 };
+        let remainingPlayersCount = 0;
+        let largestPlayerInfo = { name: '', radius: 0 };
+        let missiles = [];
+        let lastMissileFireTime = 0;
+        let missileCooldown = 0;
+        let playerKillsCount = 0;
+
+        // Config de difficulté
+        const difficultySettings = {
+            easy: { botSpeedFactor: 0.8, botGrowthFactor: 0.7, botAggressionRadius: 100 },
+            normal: { botSpeedFactor: 1, botGrowthFactor: 1, botAggressionRadius: 150 },
+            hard: { botSpeedFactor: 1.2, botGrowthFactor: 1.3, botAggressionRadius: 200 },
+        };
+
+        // --- Fonctions utilitaires UI ---
+        function showMessage(msg) {
+            const messageDisplay = document.getElementById('message-display');
+            if (messageDisplay) {
+                messageDisplay.textContent = msg;
+                messageDisplay.classList.remove('hidden');
+                clearTimeout(messageTimeoutId);
+                messageTimeoutId = setTimeout(() => {
+                    messageDisplay.classList.add('hidden');
+                }, 3000);
+            }
+        }
+
+        function updateUI() {
+            // Masquer toutes les sections explicitement
+            document.getElementById('main-menu').style.display = 'none';
+            document.getElementById('customize-skins').style.display = 'none';
+            document.getElementById('shop').style.display = 'none';
+            document.getElementById('game-canvas-container').style.display = 'none';
+            document.getElementById('victory-screen').style.display = 'none';
+            document.getElementById('death-screen').style.display = 'none';
+
+            // Afficher le titre global et l'ID utilisateur sauf en mode jeu
+            document.getElementById('global-title').style.display = 'block';
+            document.getElementById('user-id-display').style.display = 'block';
+
+
+            // Afficher la section appropriée
+            switch (currentPage) {
+                case 'menu':
+                    document.getElementById('main-menu').style.display = 'block';
+                    document.getElementById('nickname-input').value = playerData.nickname;
+                    document.getElementById('player-level').textContent = playerData.level;
+                    document.getElementById('player-xp').textContent = playerData.xp;
+                    document.getElementById('player-gold').textContent = playerData.gold;
+                    document.getElementById('current-skin-display').textContent = playerData.currentSkin;
+                    document.getElementById('difficulty-select').value = difficulty;
+                    break;
+                case 'customize':
+                    document.getElementById('customize-skins').style.display = 'block';
+                    renderCustomizeSkins();
+                    break;
+                case 'shop':
+                    document.getElementById('shop').style.display = 'block';
+                    renderShop();
+                    break;
+                case 'game':
+                    document.getElementById('global-title').style.display = 'none'; // Masquer le titre en jeu
+                    document.getElementById('user-id-display').style.display = 'none'; // Masquer l'ID en jeu
+                    document.getElementById('game-canvas-container').style.display = 'flex'; // Afficher le conteneur du jeu
+                    // S'assurer que le canvas prend toute la place
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                    startGame(); // Démarrer la logique du jeu
+                    break;
+                case 'celebration':
+                    document.getElementById('victory-screen').style.display = 'flex';
+                    renderVictoryScreen();
+                    break;
+                case 'death':
+                    document.getElementById('death-screen').style.display = 'flex';
+                    renderDeathScreen();
+                    break;
+                default:
+                    document.getElementById('main-menu').style.display = 'block';
+            }
+        }
+
+        function renderCustomizeSkins() {
+            const skinsGrid = document.getElementById('skins-grid');
+            skinsGrid.innerHTML = ''; // Nettoyer la grille
+            SHOP_SKINS.forEach(skin => {
+                const skinDiv = document.createElement('div');
+                const isOwned = playerData.ownedSkins.includes(skin.emoji);
+                const isCurrent = playerData.currentSkin === skin.emoji;
+                skinDiv.className = `p-4 rounded-lg cursor-pointer transition-all duration-200 transform hover:scale-105
+                    ${isOwned
+                        ? (isCurrent ? 'bg-purple-600 border-4 border-yellow-400' : 'bg-gray-700 hover:bg-purple-500 border border-gray-600')
+                        : 'bg-gray-900 opacity-50 cursor-not-allowed border border-gray-700'
+                    }`;
+                skinDiv.innerHTML = `
+                    <span class="text-5xl block mb-2">${skin.emoji}</span>
+                    <p class="text-sm font-semibold">${skin.name}</p>
+                    ${!isOwned ? '<p class="text-xs text-red-300">À acheter</p>' : ''}
+                `;
+                if (isOwned) {
+                    skinDiv.onclick = () => handleSkinSelect(skin.emoji);
+                }
+                skinsGrid.appendChild(skinDiv);
+            });
+        }
+
+        function renderShop() {
+            const shopSkinsGrid = document.getElementById('shop-skins-grid');
+            shopSkinsGrid.innerHTML = '';
+            document.getElementById('shop-player-gold').textContent = playerData.gold;
+
+            const purchasableSkins = SHOP_SKINS.filter(skin => !playerData.ownedSkins.includes(skin.emoji));
+
+            if (purchasableSkins.length === 0) {
+                document.getElementById('shop-no-skins-message').classList.remove('hidden');
+            } else {
+                document.getElementById('shop-no-skins-message').classList.add('hidden');
+                purchasableSkins.forEach(skin => {
+                    const skinDiv = document.createElement('div');
+                    const canAfford = playerData.gold >= skin.cost;
+                    skinDiv.className = `bg-gray-700 p-4 rounded-lg shadow-md border border-gray-600 flex flex-col items-center justify-between transition-all duration-200 transform hover:scale-105`;
+                    skinDiv.innerHTML = `
+                        <span class="text-5xl block mb-2">${skin.emoji}</span>
+                        <p class="text-lg font-semibold mb-2">${skin.name}</p>
+                        <p class="text-xl font-bold text-green-400 mb-4">${skin.cost} Or</p>
+                        <button class="w-full py-2 rounded-lg font-bold text-white transition-all duration-300
+                            ${canAfford ? 'bg-gradient-to-r from-teal-500 to-green-500 hover:from-teal-600 hover:to-green-600' : 'bg-gray-500 cursor-not-allowed'}"
+                            ${!canAfford ? 'disabled' : ''}>
+                            Acheter
+                        </button>
+                    `;
+                    if (canAfford) {
+                        skinDiv.querySelector('button').onclick = () => handleBuySkin(skin);
+                    }
+                    shopSkinsGrid.appendChild(skinDiv);
+                });
+            }
+        }
+
+        function renderVictoryScreen() {
+            document.getElementById('earned-xp-display').textContent = `${lastGameRewards.xp} XP`;
+            document.getElementById('earned-gold-display').textContent = `${lastGameRewards.gold} Or`;
+
+            const xpBarFill = document.getElementById('xp-bar-fill');
+            const animatedXpDisplay = document.getElementById('animated-xp');
+            const nextLevelXpDisplay = document.getElementById('next-level-xp');
+            const animatedGoldDisplay = document.getElementById('animated-gold');
+            const animatedLevelDisplay = document.getElementById('animated-level');
+
+            let startTime = null;
+            const duration = 2000; // 2 secondes pour l'animation
+
+            const animateRewards = (timestamp) => {
+                if (!startTime) startTime = timestamp;
+                const progress = (timestamp - startTime) / duration;
+
+                if (progress < 1) {
+                    // Animer l'XP
+                    const currentXp = (playerData.xp - lastGameRewards.xp) + (lastGameRewards.xp * progress);
+                    animatedXpDisplay.textContent = Math.floor(currentXp);
+                    const currentLevel = Math.floor(currentXp / 100) + 1;
+                    animatedLevelDisplay.textContent = currentLevel;
+                    nextLevelXpDisplay.textContent = Math.ceil(currentXp / 100) * 100;
+                    xpBarFill.style.width = `${(currentXp % 100)}%`;
+
+                    // Animer l'Or
+                    const currentGold = (playerData.gold - lastGameRewards.gold) + (lastGameRewards.gold * progress);
+                    animatedGoldDisplay.textContent = Math.floor(currentGold);
+
+                    requestAnimationFrame(animateRewards);
+                } else {
+                    animatedXpDisplay.textContent = playerData.xp;
+                    animatedGoldDisplay.textContent = playerData.gold;
+                    animatedLevelDisplay.textContent = playerData.level;
+                    xpBarFill.style.width = `${(playerData.xp % 100)}%`;
+                    nextLevelXpDisplay.textContent = Math.ceil(playerData.xp / 100) * 100;
+                    setTimeout(() => setCurrentPageAndRender('menu'), 1500);
+                }
+            };
+            requestAnimationFrame(animateRewards);
+        }
+
+        function renderDeathScreen() {
+            document.getElementById('death-kills-display').textContent = lastGameRewards.kills;
+            document.getElementById('death-rank-display').textContent = lastGameRewards.finalRank;
+            document.getElementById('death-earned-xp-display').textContent = `${lastGameRewards.xp} XP`;
+            document.getElementById('death-earned-gold-display').textContent = `${lastGameRewards.gold} Or`;
+            setTimeout(() => setCurrentPageAndRender('menu'), 3000);
+        }
+
+        function setCurrentPageAndRender(page) {
+            currentPage = page;
+            updateUI();
+        }
+
+        // --- Firebase Logic ---
+        let unsubscribeFirestore = null; // Pour nettoyer l'écouteur Firestore
+
+        async function initFirebaseAndListen() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined') {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // Écouteur de l'état d'authentification
+                onAuthStateChanged(auth, (user) => {
+                    // Nettoyer l'ancien listener Firestore avant d'en configurer un nouveau
+                    if (unsubscribeFirestore) {
+                        unsubscribeFirestore();
+                        unsubscribeFirestore = null;
+                    }
+
+                    if (user) {
+                        playerData.userId = user.uid;
+                        document.getElementById('user-id-display').innerHTML = `ID Utilisateur: <span class="font-mono bg-gray-700 px-2 py-1 rounded">${playerData.userId}</span>`;
+
+                        const userDocRef = doc(db, `artifacts/${appId}/users/${playerData.userId}/gameData`, 'userData');
+
+                        unsubscribeFirestore = onSnapshot(userDocRef, (docSnap) => {
+                            if (docSnap.exists()) {
+                                const data = docSnap.data();
+                                playerData = {
+                                    ...playerData,
+                                    nickname: data.nickname || playerData.nickname,
+                                    level: data.level || playerData.level,
+                                    xp: data.xp || playerData.xp,
+                                    gold: data.gold || playerData.gold,
+                                    currentSkin: data.currentSkin || playerData.currentSkin,
+                                    ownedSkins: data.ownedSkins || playerData.ownedSkins,
+                                };
+                                console.log("Données utilisateur chargées:", playerData);
+                            } else {
+                                console.log("Création des données utilisateur initiales.");
+                                const initialSaveData = {
+                                    nickname: playerData.nickname,
+                                    level: playerData.level,
+                                    xp: playerData.xp,
+                                    gold: playerData.gold,
+                                    currentSkin: playerData.currentSkin,
+                                    ownedSkins: playerData.ownedSkins,
+                                };
+                                setDoc(userDocRef, initialSaveData)
+                                    .then(() => console.log("Données utilisateur initiales sauvegardées."))
+                                    .catch(e => console.error("Erreur lors de la sauvegarde initiale:", e));
+                            }
+                            isLoading = false; // Fin du chargement
+                            updateUI(); // Mettre à jour l'UI après le chargement des données
+                        }, (error) => {
+                            console.error("Erreur d'écoute Firestore:", error);
+                            // showMessage("Erreur de chargement des données. Veuillez recharger.");
+                            isLoading = false; // Fin du chargement même en cas d'erreur
+                            updateUI();
+                        });
+                    } else {
+                        playerData.userId = null;
+                        document.getElementById('user-id-display').textContent = 'Chargement de l\'utilisateur...';
+                        isLoading = false; // Fin du chargement
+                        updateUI();
+                    }
+                });
+            } catch (e) {
+                console.error("Erreur lors de l'initialisation de Firebase:", e);
+                showMessage("Erreur lors de l'initialisation. Veuillez recharger la page.");
+                isLoading = false;
+                updateUI();
+            }
+        }
+
+        async function savePlayerData(dataToSave) {
+            if (!playerData.userId) {
+                console.warn("Impossible de sauvegarder : userId manquant.");
+                return;
+            }
+            const userDocRef = doc(db, `artifacts/${appId}/users/${playerData.userId}/gameData`, 'userData');
+            try {
+                await setDoc(userDocRef, dataToSave, { merge: true });
+                console.log("Données utilisateur sauvegardées avec succès.");
+            } catch (e) {
+                console.error("Erreur lors de la sauvegarde des données utilisateur:", e);
+                showMessage("Erreur de sauvegarde des données. Veuillez réessayer.");
+            }
+        }
+
+        // --- Handlers UI ---
+        function handleNicknameChange(e) {
+            const newNickname = e.target.value;
+            playerData.nickname = newNickname;
+            savePlayerData({ nickname: newNickname });
+        }
+
+        function handleSkinSelect(emoji) {
+            playerData.currentSkin = emoji;
+            savePlayerData({ currentSkin: emoji });
+            showMessage(`Skin "${SHOP_SKINS.find(s => s.emoji === emoji)?.name}" sélectionné !`);
+            setCurrentPageAndRender('menu');
+        }
+
+        function handleBuySkin(skin) {
+            if (playerData.gold >= skin.cost) {
+                playerData.gold -= skin.cost;
+                playerData.ownedSkins.push(skin.emoji);
+                savePlayerData({ gold: playerData.gold, ownedSkins: playerData.ownedSkins });
+                showMessage(`"${skin.name}" acheté pour ${skin.cost} or !`);
+                renderShop(); // Re-render the shop to update display
+            } else {
+                showMessage(`Pas assez d'or pour acheter "${skin.name}" (il vous manque ${skin.cost - playerData.gold} or)`);
+            }
+        }
+
+        function handleGameEnd(isPlayerWinner, playerKills, finalRank) {
+            let xpEarned = 0;
+            let goldEarned = 0;
+
+            xpEarned += 10; // Base participation
+            goldEarned += 10;
+
+            if (isPlayerWinner) {
+                xpEarned += 50; // Win bonus
+                goldEarned += 100; // Win bonus
+            }
+
+            xpEarned += playerKills * 15; // XP per kill
+            goldEarned += playerKills * 10; // Gold per kill
+
+            if (finalRank === 1) { // Top 1
+                xpEarned += 100;
+                goldEarned += 200;
+            } else if (finalRank <= 5) { // Top 5
+                xpEarned += 50;
+                goldEarned += 100;
+            } else if (finalRank <= 10) { // Top 10
+                xpEarned += 20;
+                goldEarned += 40;
+            }
+
+            playerData.xp += xpEarned;
+            playerData.gold += goldEarned;
+            playerData.level = Math.floor(playerData.xp / 100) + 1;
+
+            savePlayerData({ xp: playerData.xp, gold: playerData.gold, level: playerData.level });
+            lastGameRewards = { xp: xpEarned, gold: goldEarned, isWinner: isPlayerWinner, kills: playerKills, finalRank: finalRank };
+
+            if (isPlayerWinner) {
+                setCurrentPageAndRender('celebration');
+            } else {
+                setCurrentPageAndRender('death');
+            }
+        }
+
+        // --- Game Logic (Canvas) ---
+        class Circle {
+            constructor(x, y, radius, emoji, name, isPlayer = false) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.emoji = emoji;
+                this.name = name;
+                this.isPlayer = isPlayer;
+                this.color = isPlayer ? '#FFD700' : `hsl(${Math.random() * 360}, 70%, 50%)`;
+                this.velocity = { x: 0, y: 0 };
+                this.mass = Math.PI * radius * radius;
+                this.isAlive = true;
+            }
+
+            updateMass() {
+                this.mass = Math.PI * this.radius * this.radius;
+            }
+
+            draw(ctx) {
+                if (!this.isAlive) return;
+
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 3 / ctx.getTransform().a;
+                ctx.stroke();
+                ctx.closePath();
+
+                ctx.font = `${this.radius * 1.5 / ctx.getTransform().a}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.emoji, this.x, this.y);
+
+                ctx.font = `${Math.max(10, this.radius / 2.5 / ctx.getTransform().a)}px Inter, sans-serif`;
+                ctx.fillStyle = 'white';
+                ctx.fillText(this.name, this.x, this.y + this.radius + (10 / ctx.getTransform().a));
+            }
+        }
+
+        class Food {
+            constructor(x, y, radius) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = `hsl(${Math.random() * 360}, 90%, 70%)`;
+            }
+
+            draw(ctx) {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.closePath();
+            }
+        }
+
+        class Missile {
+            constructor(x, y, targetX, targetY) {
+                this.x = x;
+                this.y = y;
+                this.radius = 8;
+                this.speed = 15;
+                this.color = '#FF00FF';
+                this.isAlive = true;
+                this.lifetime = 2000;
+                this.birthTime = Date.now();
+
+                const angle = Math.atan2(targetY - y, targetX - x);
+                this.velocity = {
+                    x: Math.cos(angle) * this.speed,
+                    y: Math.sin(angle) * this.speed
+                };
+            }
+
+            update() {
+                if (!this.isAlive) return;
+                this.x += this.velocity.x;
+                this.y += this.velocity.y;
+
+                if (this.x < -this.radius || this.x > GAME_WIDTH + this.radius ||
+                    this.y < -this.radius || this.y > GAME_HEIGHT + this.radius ||
+                    (Date.now() - this.birthTime > this.lifetime)) {
+                    this.isAlive = false;
+                }
+            }
+
+            draw(ctx) {
+                if (!this.isAlive) return;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.closePath();
+            }
+        }
+
+        function initializeGame() {
+            players = [];
+            food = [];
+            missiles = [];
+            currentPlayerSize = playerData.level * PLAYER_INITIAL_RADIUS;
+            lastMissileFireTime = 0;
+            missileCooldown = 0; // Reset cooldown display
+            playerKillsCount = 0;
+
+            const player = new Circle(
+                GAME_WIDTH / 2,
+                GAME_HEIGHT / 2,
+                playerData.level * PLAYER_INITIAL_RADIUS,
+                playerData.currentSkin,
+                playerData.nickname,
+                true
+            );
+            players.push(player);
+
+            for (let i = 0; i < BOT_COUNT; i++) {
+                const botRadius = Math.random() * (BOT_INITIAL_RADIUS_RANGE[1] - BOT_INITIAL_RADIUS_RANGE[0]) + BOT_INITIAL_RADIUS_RANGE[0];
+                const botX = Math.random() * (GAME_WIDTH - botRadius * 2) + botRadius;
+                const botY = Math.random() * (GAME_HEIGHT - botRadius * 2) + botRadius;
+                const randomSkin = SHOP_SKINS[Math.floor(Math.random() * SHOP_SKINS.length)].emoji;
+                players.push(new Circle(botX, botY, botRadius, randomSkin, `Bot ${i + 1}`));
+            }
+
+            for (let i = 0; i < FOOD_COUNT; i++) {
+                const foodX = Math.random() * (GAME_WIDTH - FOOD_RADIUS * 2) + FOOD_RADIUS;
+                const foodY = Math.random() * (GAME_HEIGHT - FOOD_RADIUS * 2) + FOOD_RADIUS;
+                food.push(new Food(foodX, foodY, FOOD_RADIUS));
+            }
+
+            gameRunning = true;
+            console.log("Jeu initialisé.");
+        }
+
+        function startGame() {
+            // Assurez-vous que le canvas est initialisé
+            canvas = document.getElementById('game-canvas');
+            ctx = canvas.getContext('2d');
+
+            // Set initial canvas size
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            initializeGame();
+
+            // Gestion du mouvement du joueur par la souris
+            canvas.onmousemove = (e) => {
+                lastMousePos = { x: e.clientX, y: e.clientY };
+            };
+            canvas.ontouchmove = (e) => {
+                if (e.touches.length > 0) {
+                    lastMousePos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }
+            };
+
+            // Gestion du tir de missile avec la touche espace
+            window.onkeydown = (e) => {
+                const player = players.find(p => p.isPlayer && p.isAlive);
+                if (e.code === 'Space' && player) {
+                    const now = Date.now();
+                    const cooldownDuration = 30000; // 30 secondes
+                    if (now - lastMissileFireTime > cooldownDuration) {
+                        const currentZoom = Math.max(0.2, 1 - (player.radius - PLAYER_INITIAL_RADIUS) / 500);
+                        const missileTargetX = (lastMousePos.x / currentZoom) + cameraOffset.x;
+                        const missileTargetY = (lastMousePos.y / currentZoom) + cameraOffset.y;
+                        missiles.push(new Missile(player.x, player.y, missileTargetX, missileTargetY));
+                        lastMissileFireTime = now;
+                    }
+                }
+            };
+
+            // Démarrer la boucle de jeu
+            gameLoop();
+        }
+
+        function stopGame() {
+            gameRunning = false;
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null; // Important: reset the ID after canceling
+            }
+            // Nettoyage des écouteurs d'événements spécifiques au jeu
+            canvas.onmousemove = null;
+            canvas.ontouchmove = null;
+            window.onkeydown = null; // Unbind only if this was the only keydown handler
+        }
+
+
+        function gameLoop() {
+            if (!gameRunning) {
+                return;
+            }
+
+            updateGame();
+            drawGame();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function updateGame() {
+            const player = players.find(p => p.isPlayer && p.isAlive);
+
+            if (!player) {
+                const finalRank = players.length + 1;
+                gameRunning = false;
+                handleGameEnd(false, playerKillsCount, finalRank);
+                stopGame(); // Assurez-vous de stopper la boucle de jeu
+                return;
+            }
+
+            // Mettre à jour le cooldown du missile
+            const now = Date.now();
+            const elapsed = now - lastMissileFireTime;
+            const remaining = Math.max(0, 30000 - elapsed);
+            missileCooldown = Math.ceil(remaining / 1000);
+            document.getElementById('missile-cooldown').textContent = missileCooldown === 0 ? 'PRÊT !' : `${missileCooldown}s`;
+
+            // Mettre à jour la taille du joueur pour l'affichage
+            currentPlayerSize = player.radius;
+            document.getElementById('current-player-size').textContent = currentPlayerSize.toFixed(0);
+
+
+            const currentZoom = Math.max(0.2, 1 - (player.radius - PLAYER_INITIAL_RADIUS) / 500);
+
+            const visibleWorldWidth = canvas.width / currentZoom;
+            const visibleWorldHeight = canvas.height / currentZoom;
+
+            cameraOffset.x = player.x - visibleWorldWidth / 2;
+            cameraOffset.y = player.y - visibleWorldHeight / 2;
+
+            cameraOffset.x = Math.max(0, Math.min(cameraOffset.x, GAME_WIDTH - visibleWorldWidth));
+            cameraOffset.y = Math.max(0, Math.min(cameraOffset.y, GAME_HEIGHT - visibleWorldHeight));
+
+            const mouseWorldX = (lastMousePos.x / currentZoom) + cameraOffset.x;
+            const mouseWorldY = (lastMousePos.y / currentZoom) + cameraOffset.y;
+
+            const dx = mouseWorldX - player.x;
+            const dy = mouseWorldY - player.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > player.radius / 4) {
+                const speed = Math.max(2, 5 - (player.radius / 100));
+                player.x += (dx / distance) * speed;
+                player.y += (dy / distance) * speed;
+            }
+
+            player.x = Math.max(player.radius, Math.min(player.x, GAME_WIDTH - player.radius));
+            player.y = Math.max(player.radius, Math.min(player.y, GAME_HEIGHT - player.radius));
+
+            players.forEach(bot => {
+                if (!bot.isPlayer && bot.isAlive) {
+                    let target = null;
+                    let shortestDistance = Infinity;
+                    const currentDifficulty = difficultySettings[difficulty];
+
+                    food.forEach(f => {
+                        const dist = Math.sqrt(Math.pow(bot.x - f.x, 2) + Math.pow(bot.y - f.y, 2));
+                        if (dist < shortestDistance) {
+                            shortestDistance = dist;
+                            target = f;
+                        }
+                    });
+
+                    players.forEach(other => {
+                        if (other.isAlive && other !== bot && other.radius * 1.1 < bot.radius) {
+                            const dist = Math.sqrt(Math.pow(bot.x - other.x, 2) + Math.pow(bot.y - other.y, 2));
+                            if (dist < shortestDistance && dist < currentDifficulty.botAggressionRadius) {
+                                shortestDistance = dist;
+                                target = other;
+                            }
+                        } else if (other.isAlive && other !== bot && other.radius * 1.1 > bot.radius) {
+                            const dist = Math.sqrt(Math.pow(bot.x - other.x, 2) + Math.pow(bot.y - other.y, 2));
+                            if (dist < bot.radius * 5) {
+                                const angle = Math.atan2(bot.y - other.y, bot.x - other.x);
+                                bot.velocity.x = Math.cos(angle) * (2 + currentDifficulty.botSpeedFactor);
+                                bot.velocity.y = Math.sin(angle) * (2 + currentDifficulty.botSpeedFactor);
+                                target = null;
+                            }
+                        }
+                    });
+
+                    if (target) {
+                        const botDx = target.x - bot.x;
+                        const botDy = target.y - bot.y;
+                        const botDistance = Math.sqrt(botDx * botDx + botDy * botDy);
+                        const botSpeed = Math.max(1, 3 - (bot.radius / 100)) * currentDifficulty.botSpeedFactor;
+
+                        if (botDistance > 0) {
+                            bot.velocity.x = (botDx / botDistance) * botSpeed;
+                            bot.velocity.y = (botDy / botDistance) * botSpeed;
+                        }
+                    } else {
+                        bot.velocity.x += (Math.random() - 0.5) * 0.1;
+                        bot.velocity.y += (Math.random() - 0.5) * 0.1;
+                    }
+
+                    const maxBotSpeed = 5 * currentDifficulty.botSpeedFactor;
+                    bot.velocity.x = Math.max(-maxBotSpeed, Math.min(bot.velocity.x, maxBotSpeed));
+                    bot.velocity.y = Math.max(-maxBotSpeed, Math.min(bot.velocity.y, maxBotSpeed));
+
+                    bot.x += bot.velocity.x;
+                    bot.y += bot.velocity.y;
+
+                    bot.x = Math.max(bot.radius, Math.min(bot.x, GAME_WIDTH - bot.radius));
+                    bot.y = Math.max(bot.radius, Math.min(bot.y, GAME_HEIGHT - bot.radius));
+                }
+            });
+
+            missiles.forEach(missile => {
+                missile.update();
+
+                players.forEach(otherPlayer => {
+                    if (missile.isAlive && otherPlayer.isAlive && !otherPlayer.isPlayer) {
+                        const dist = Math.sqrt(Math.pow(missile.x - otherPlayer.x, 2) + Math.pow(missile.y - otherPlayer.y, 2));
+                        if (dist < missile.radius + otherPlayer.radius) {
+                            otherPlayer.radius /= 2;
+                            otherPlayer.updateMass();
+                            missile.isAlive = false;
+                            console.log(`Missile a touché ${otherPlayer.name}, sa taille est réduite à ${otherPlayer.radius.toFixed(2)}`);
+                        }
+                    }
+                });
+            });
+            missiles = missiles.filter(m => m.isAlive);
+
+            food = food.filter(f => {
+                let eaten = false;
+                players.forEach(p => {
+                    if (!p.isAlive) return;
+                    const dist = Math.sqrt(Math.pow(p.x - f.x, 2) + Math.pow(p.y - f.y, 2));
+                    if (dist < p.radius + f.radius) {
+                        p.radius = Math.sqrt(p.radius * p.radius + f.radius * f.radius * difficultySettings[difficulty].botGrowthFactor);
+                        p.updateMass();
+                        eaten = true;
+                    }
+                });
+                return !eaten;
+            });
+
+            while (food.length < FOOD_COUNT) {
+                const foodX = Math.random() * (GAME_WIDTH - FOOD_RADIUS * 2) + FOOD_RADIUS;
+                const foodY = Math.random() * (GAME_HEIGHT - FOOD_RADIUS * 2) + FOOD_RADIUS;
+                food.push(new Food(foodX, foodY, FOOD_RADIUS));
+            }
+
+            const currentPlayersAlive = [...players];
+            currentPlayersAlive.forEach(p1 => {
+                if (!p1.isAlive) return;
+
+                currentPlayersAlive.forEach(p2 => {
+                    if (!p2.isAlive || p1 === p2) return;
+
+                    const dist = Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+                    if (dist < p1.radius + p2.radius) {
+                        if (p1.radius > p2.radius * 1.1) {
+                            p1.radius = Math.sqrt(p1.radius * p1.radius + p2.radius * p2.radius);
+                            p1.updateMass();
+                            p2.isAlive = false;
+                            if (p1.isPlayer) {
+                                playerKillsCount += 1;
+                            }
+                            console.log(`${p1.name} a mangé ${p2.name}`);
+                        } else if (p2.radius > p1.radius * 1.1) {
+                            p2.radius = Math.sqrt(p2.radius * p2.radius + p1.radius * p1.radius);
+                            p2.updateMass();
+                            p1.isAlive = false;
+                            console.log(`${p2.name} a mangé ${p1.name}`);
+                        }
+                    }
+                });
+            });
+
+            players = players.filter(p => p.isAlive);
+
+            remainingPlayersCount = players.length;
+            document.getElementById('remaining-players-count').textContent = remainingPlayersCount;
+
+            const largest = players.reduce((max, p) => (p.radius > max.radius ? p : max), { radius: 0 });
+            largestPlayerInfo = { name: largest.name, radius: largest.radius };
+            document.getElementById('largest-player-info').textContent = `${largestPlayerInfo.name} (${largestPlayerInfo.radius.toFixed(0)})`;
+            document.getElementById('player-kills-display').textContent = playerKillsCount;
+
+            if (players.length === 1) {
+                const winner = players[0];
+                gameRunning = false;
+                handleGameEnd(winner.isPlayer, playerKillsCount, 1);
+                stopGame();
+            }
+        }
+
+        function drawGame() {
+            if (!canvas || !ctx) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+
+            const player = players.find(p => p.isPlayer && p.isAlive);
+            const currentZoom = player ? Math.max(0.2, 1 - (player.radius - PLAYER_INITIAL_RADIUS) / 500) : 1;
+
+            ctx.scale(currentZoom, currentZoom);
+            ctx.translate(-cameraOffset.x, -cameraOffset.y);
+
+            ctx.strokeStyle = '#555';
+            ctx.lineWidth = 5 / currentZoom;
+            ctx.strokeRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+            food.forEach(f => f.draw(ctx));
+            players.forEach(p => p.draw(ctx));
+            missiles.forEach(m => m.draw(ctx));
+
+            ctx.restore();
+        }
+
+        // Fonction pour activer/désactiver le mode plein écran du navigateur
+        function toggleFullscreen() {
+            const elem = document.documentElement;
+            if (!document.fullscreenElement) {
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen();
+                } else if (elem.mozRequestFullScreen) { /* Firefox */
+                    elem.mozRequestFullScreen();
+                } else if (elem.webkitRequestFullscreen) { /* Chrome, Safari and Opera */
+                    elem.webkitRequestFullscreen();
+                } else if (elem.msRequestFullscreen) { /* IE/Edge */
+                    elem.msRequestFullscreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.mozCancelFullScreen) { /* Firefox */
+                    document.mozCancelFullScreen();
+                } else if (document.webkitExitFullscreen) { /* Chrome, Safari and Opera */
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) { /* IE/Edge */
+                    document.msExitFullscreen();
+                }
+            }
+        }
+
+        // --- Initialisation au chargement de la page ---
+        window.onload = () => {
+            // Récupérer les éléments DOM
+            const nicknameInput = document.getElementById('nickname-input');
+            const difficultySelect = document.getElementById('difficulty-select');
+            const playButton = document.getElementById('play-button');
+            const customizeButton = document.getElementById('customize-button');
+            const shopButton = document.getElementById('shop-button');
+            const customizeBackButton = document.getElementById('customize-back-button');
+            const shopBackButton = document.getElementById('shop-back-button');
+            const quitGameButton = document.getElementById('quit-game-button');
+            const fullscreenButton = document.getElementById('fullscreen-button');
+
+            // Attacher les écouteurs d'événements
+            nicknameInput.oninput = handleNicknameChange;
+            difficultySelect.onchange = (e) => difficulty = e.target.value;
+            playButton.onclick = () => setCurrentPageAndRender('game');
+            customizeButton.onclick = () => setCurrentPageAndRender('customize');
+            shopButton.onclick = () => setCurrentPageAndRender('shop');
+            customizeBackButton.onclick = () => setCurrentPageAndRender('menu');
+            shopBackButton.onclick = () => setCurrentPageAndRender('menu');
+            quitGameButton.onclick = () => {
+                stopGame(); // Assurez-vous de stopper la boucle de jeu
+                // Calculer le rang final avant de quitter pour donner des récompenses
+                const finalRank = players.filter(p => p.isAlive).length + 1; // Joueurs encore en vie + 1 (pour le joueur qui quitte)
+                handleGameEnd(false, playerKillsCount, finalRank); // Indiquer que le joueur n'a pas gagné en quittant
+            };
+            fullscreenButton.onclick = toggleFullscreen;
+
+
+            // Initialiser Firebase et l'UI
+            initFirebaseAndListen();
+
+            // Initialisation du canvas (peut être fait ici car il est maintenant masqué par défaut)
+            canvas = document.getElementById('game-canvas');
+            ctx = canvas.getContext('2d');
+        };
+
+        // Gérer le redimensionnement de la fenêtre pour le canvas, même si le jeu n'est pas en cours
+        window.addEventListener('resize', () => {
+            if (currentPage === 'game' && canvas) {
+                // Le canvas doit toujours s'adapter à la taille actuelle de son conteneur (la fenêtre)
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            // Mettre à jour la caméra et redessiner si nécessaire pour que la carte reste centrée
+            if (gameRunning) {
+                const player = players.find(p => p.isPlayer && p.isAlive);
+                if (player) {
+                    const currentZoom = Math.max(0.2, 1 - (player.radius - PLAYER_INITIAL_RADIUS) / 500);
+                    const visibleWorldWidth = canvas.width / currentZoom;
+                    const visibleWorldHeight = canvas.height / currentZoom;
+                    cameraOffset.x = player.x - visibleWorldWidth / 2;
+                    cameraOffset.y = player.y - visibleWorldHeight / 2;
+                    cameraOffset.x = Math.max(0, Math.min(cameraOffset.x, GAME_WIDTH - visibleWorldWidth));
+                    cameraOffset.y = Math.max(0, Math.min(cameraOffset.y, GAME_HEIGHT - visibleWorldHeight));
+                }
+                drawGame();
+            }
+        });
+
+    </script>
+</body>
+</html>
