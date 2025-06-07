@@ -12,7 +12,7 @@
         body {
             font-family: 'Inter', sans-serif;
             margin: 0;
-            overflow: hidden; /* Empêche le défilement et permet au canvas de prendre toute la place */
+            overflow: hidden; /* Empêche le défilement global du body, important pour le canvas en plein écran */
             background: linear-gradient(to bottom right, #1e0a3b, #4a0e6e); /* Fond dégradé du corps */
         }
         /* Assure que l'application conteneur s'adapte à l'écran */
@@ -25,6 +25,9 @@
             width: 100vw;
             background: linear-gradient(to bottom right, #1e0a3b, #4a0e6e);
             position: relative; /* Pour positionner les messages absolus */
+            overflow-y: auto; /* Permet le défilement vertical du conteneur principal si le contenu dépasse */
+            padding-top: 20px; /* Ajoute un peu d'espace en haut pour le confort */
+            padding-bottom: 20px; /* Ajoute un peu d'espace en bas pour le confort */
         }
         /* Conteneur du jeu en plein écran, caché par default */
         #game-canvas-container {
@@ -258,7 +261,7 @@
             level: 1,
             xp: 0,
             gold: 0,
-            currentSkin: '�',
+            currentSkin: '🎧',
             ownedSkins: ['🎧'],
             userId: 'local-player', // Utilisateur local par défaut pour l'affichage
         };
@@ -1113,4 +1116,3 @@
     </script>
 </body>
 </html>
-�
