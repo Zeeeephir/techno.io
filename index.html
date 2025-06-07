@@ -25,7 +25,7 @@
             width: 100vw;
             background: linear-gradient(to bottom right, #1e0a3b, #4a0e6e);
             position: relative; /* Pour positionner les messages absolus */
-            /* Removed overflow-y: auto from here, now it's on individual menu sections */
+            overflow-y: auto; /* Permet le défilement vertical du conteneur principal si le contenu dépasse */
             padding-top: 20px; /* Ajoute un peu d'espace en haut pour le confort */
             padding-bottom: 20px; /* Ajoute un peu d'espace en bas pour le confort */
         }
@@ -45,8 +45,7 @@
         /* Styles pour les sections, masquées par défaut en HTML pour éviter le FOUC, mais contrôlées par JS */
         #main-menu, #customize-skins, #shop, #victory-screen, #death-screen {
             display: none; /* Sera géré par JavaScript updateUI() */
-            max-height: 90vh; /* Permet à la section de défiler si son contenu est trop grand */
-            overflow-y: auto; /* Active le défilement vertical pour la section si nécessaire */
+            /* Removed max-height and overflow-y: auto from here, now it's on #app-container */
         }
         /* Écran de chargement visible par défaut */
         #loading-screen {
@@ -265,7 +264,7 @@
             level: 1,
             xp: 0,
             gold: 0,
-            currentSkin: '🎧',
+            currentSkin: '�',
             ownedSkins: ['🎧'],
             userId: 'local-player', // Utilisateur local par défaut pour l'affichage
         };
@@ -1153,3 +1152,4 @@
     </script>
 </body>
 </html>
+�
