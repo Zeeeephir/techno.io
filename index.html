@@ -235,6 +235,7 @@
 
         // Variables globales fournies par l'environnement Canvas
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        // Initialisation de Firebase (doit être fait une seule fois au niveau global du module)
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
@@ -264,7 +265,7 @@
             level: 1,
             xp: 0,
             gold: 0,
-            currentSkin: '�',
+            currentSkin: '🎧',
             ownedSkins: ['🎧'],
             userId: null,
         };
@@ -310,7 +311,7 @@
         }
 
         function updateUI() {
-            // Masquer toutes les sections explicitement, y compris les éléments globaux du haut
+            // Masquer toutes les sections explicitement
             document.getElementById('main-menu').style.display = 'none';
             document.getElementById('customize-skins').style.display = 'none';
             document.getElementById('shop').style.display = 'none';
@@ -492,13 +493,14 @@
 
         async function initFirebaseAndListen() {
             try {
+                // Tenter de se connecter avec un jeton personnalisé si disponible, sinon anonymement
                 if (typeof __initial_auth_token !== 'undefined') {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
                     await signInAnonymously(auth);
                 }
 
-                // Écouteur de l'état d'authentification
+                // Écouteur de l'état d'authentification Firebase
                 onAuthStateChanged(auth, (user) => {
                     // Nettoyer l'ancien listener Firestore avant d'en configurer un nouveau
                     if (unsubscribeFirestore) {
@@ -522,7 +524,7 @@
                                     xp: data.xp || playerData.xp,
                                     gold: data.gold || playerData.gold,
                                     currentSkin: data.currentSkin || playerData.currentSkin,
-                                    ownedSkins: data.ownedSkins || playerData.ownedSkins,
+                                    ownedSkins: data.ownedSkins || playerData.ownedSskins,
                                 };
                                 console.log("Données utilisateur chargées:", playerData);
                             } else {
@@ -543,22 +545,21 @@
                             updateUI(); // Mettre à jour l'UI après le chargement des données
                         }, (error) => {
                             console.error("Erreur d'écoute Firestore:", error);
-                            // showMessage("Erreur de chargement des données. Veuillez recharger.");
                             isLoading = false; // Fin du chargement même en cas d'erreur
-                            updateUI();
+                            updateUI(); // Tenter d'afficher l'UI même en cas d'erreur Firestore
                         });
                     } else {
                         playerData.userId = null;
                         document.getElementById('user-id-display').textContent = 'Chargement de l\'utilisateur...';
-                        isLoading = false; // Fin du chargement
+                        isLoading = false; // Si aucun utilisateur, afficher l'UI quand même
                         updateUI();
                     }
                 });
             } catch (e) {
-                console.error("Erreur lors de l'initialisation de Firebase:", e);
+                console.error("Erreur lors de l'initialisation de Firebase ou de l'authentification:", e);
                 showMessage("Erreur lors de l'initialisation. Veuillez recharger la page.");
-                isLoading = false;
-                updateUI();
+                isLoading = false; // S'assurer que l'écran de chargement est masqué même en cas d'erreur majeure
+                updateUI(); // Afficher l'UI à l'utilisateur même si Firebase échoue
             }
         }
 
@@ -1122,7 +1123,17 @@
             // La fonction initFirebaseAndListen() appelle updateUI() une fois Firebase prêt.
             initFirebaseAndListen();
 
-            // Initialisation du canvas
+            // Safety net: Force UI update after a short delay, even if Firebase takes longer
+            // This ensures the loading screen doesn't get stuck and the menu appears.
+            setTimeout(() => {
+                if (isLoading) { // Only if still stuck on loading
+                    isLoading = false;
+                    updateUI();
+                    console.log("Forced UI update after timeout as Firebase was still loading or had issues.");
+                }
+            }, 3000); // 3 seconds timeout
+
+            // Initialisation du canvas (these lines can stay)
             canvas = document.getElementById('game-canvas');
             ctx = canvas.getContext('2d');
         };
@@ -1153,4 +1164,3 @@
     </script>
 </body>
 </html>
-�
