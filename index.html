@@ -324,7 +324,13 @@
         let food = [];
         let currentPlayerSize = PLAYER_INITIAL_RADIUS;
         let lastMousePos = { x: 0, y: 0 };
-        let cameraOffset = { x: 0, y: 0 };
+
+        // Variables pour la caméra fluide
+        let smoothCameraOffset = { x: 0, y: 0 };
+        let smoothZoom = 1;
+        const cameraSmoothness = 0.08; // Facteur d'interpolation pour le mouvement de la caméra
+        const zoomSmoothness = 0.05;   // Facteur d'interpolation pour le zoom de la caméra
+
         let remainingPlayersCount = 0;
         let largestPlayerInfo = { name: '', radius: 0 };
         let missiles = [];
@@ -838,6 +844,21 @@
 
             initializeGame();
 
+            // Initialiser les valeurs de la caméra fluide pour éviter un saut au premier rendu
+            const player = players.find(p => p.isPlayer && p.isAlive);
+            if (player) {
+                smoothZoom = Math.max(0.2, 1 - (player.radius - PLAYER_INITIAL_RADIUS) / 500);
+                const visibleWorldWidth = canvas.width / smoothZoom;
+                const visibleWorldHeight = canvas.height / smoothZoom;
+                smoothCameraOffset.x = player.x - visibleWorldWidth / 2;
+                smoothCameraOffset.y = player.y - visibleWorldHeight / 2;
+                smoothCameraOffset.x = Math.max(0, Math.min(smoothCameraOffset.x, GAME_WIDTH - visibleWorldWidth));
+                smoothCameraOffset.y = Math.max(0, Math.min(smoothCameraOffset.y, GAME_HEIGHT - visibleWorldHeight));
+            } else {
+                smoothZoom = 1;
+                smoothCameraOffset = { x: GAME_WIDTH / 2 - canvas.width / 2, y: GAME_HEIGHT / 2 - canvas.height / 2 };
+            }
+
             // Gestion du mouvement du joueur par la souris
             canvas.onmousemove = (e) => {
                 lastMousePos = { x: e.clientX, y: e.clientY };
@@ -855,9 +876,9 @@
                     const now = Date.now();
                     const cooldownDuration = 30000; // 30 secondes
                     if (now - lastMissileFireTime > cooldownDuration) {
-                        const currentZoom = Math.max(0.2, 1 - (player.radius - PLAYER_INITIAL_RADIUS) / 500);
-                        const missileTargetX = (lastMousePos.x / currentZoom) + cameraOffset.x;
-                        const missileTargetY = (lastMousePos.y / currentZoom) + cameraOffset.y;
+                        // Utilise smoothZoom et smoothCameraOffset pour calculer la position du curseur dans le monde
+                        const missileTargetX = (lastMousePos.x / smoothZoom) + smoothCameraOffset.x;
+                        const missileTargetY = (lastMousePos.y / smoothZoom) + smoothCameraOffset.y;
                         missiles.push(new Missile(player.x, player.y, missileTargetX, missileTargetY));
                         lastMissileFireTime = now;
                     }
@@ -915,20 +936,27 @@
             currentPlayerSize = player.radius;
             document.getElementById('current-player-size').textContent = currentPlayerSize.toFixed(0);
 
+            // Calculer la position cible de la caméra et le zoom cible
+            const targetZoom = Math.max(0.2, 1 - (player.radius - PLAYER_INITIAL_RADIUS) / 500);
 
-            const currentZoom = Math.max(0.2, 1 - (player.radius - PLAYER_INITIAL_RADIUS) / 500);
+            const visibleWorldWidth = canvas.width / targetZoom;
+            const visibleWorldHeight = canvas.height / targetZoom;
 
-            const visibleWorldWidth = canvas.width / currentZoom;
-            const visibleWorldHeight = canvas.height / currentZoom;
+            let targetCameraOffset = { x: 0, y: 0 };
+            targetCameraOffset.x = player.x - visibleWorldWidth / 2;
+            targetCameraOffset.y = player.y - visibleWorldHeight / 2;
 
-            cameraOffset.x = player.x - visibleWorldWidth / 2;
-            cameraOffset.y = player.y - visibleWorldHeight / 2;
+            targetCameraOffset.x = Math.max(0, Math.min(targetCameraOffset.x, GAME_WIDTH - visibleWorldWidth));
+            targetCameraOffset.y = Math.max(0, Math.min(targetCameraOffset.y, GAME_HEIGHT - visibleWorldHeight));
 
-            cameraOffset.x = Math.max(0, Math.min(cameraOffset.x, GAME_WIDTH - visibleWorldWidth));
-            cameraOffset.y = Math.max(0, Math.min(cameraOffset.y, GAME_HEIGHT - visibleWorldHeight));
+            // Interpolation linéaire pour la caméra et le zoom pour un mouvement fluide
+            smoothCameraOffset.x += (targetCameraOffset.x - smoothCameraOffset.x) * cameraSmoothness;
+            smoothCameraOffset.y += (targetCameraOffset.y - smoothCameraOffset.y) * cameraSmoothness;
+            smoothZoom += (targetZoom - smoothZoom) * zoomSmoothness;
 
-            const mouseWorldX = (lastMousePos.x / currentZoom) + cameraOffset.x;
-            const mouseWorldY = (lastMousePos.y / currentZoom) + cameraOffset.y;
+            // Calcul de la position de la souris dans le monde du jeu (utilise les valeurs fluides)
+            const mouseWorldX = (lastMousePos.x / smoothZoom) + smoothCameraOffset.x;
+            const mouseWorldY = (lastMousePos.y / smoothZoom) + smoothCameraOffset.y;
 
             const dx = mouseWorldX - player.x;
             const dy = mouseWorldY - player.y;
@@ -980,7 +1008,7 @@
 
                     if (target) {
                         const botDx = target.x - bot.x;
-                        const botDy = target.y - target.y;
+                        const botDy = target.y - bot.y; // <-- CORRECTION ICI ! Anciennement target.y - target.y
                         const botDistance = Math.sqrt(botDx * botDx + botDy * botDy);
                         const botSpeed = Math.max(1, 3 - (bot.radius / 100)) * currentDifficulty.botSpeedFactor;
 
@@ -1121,14 +1149,12 @@
 
             ctx.save();
 
-            const player = players.find(p => p.isPlayer && p.isAlive);
-            const currentZoom = player ? Math.max(0.2, 1 - (player.radius - PLAYER_INITIAL_RADIUS) / 500) : 1;
-
-            ctx.scale(currentZoom, currentZoom);
-            ctx.translate(-cameraOffset.x, -cameraOffset.y);
+            // Utilise les valeurs de caméra et zoom lissées pour le rendu
+            ctx.scale(smoothZoom, smoothZoom);
+            ctx.translate(-smoothCameraOffset.x, -smoothCameraOffset.y);
 
             ctx.strokeStyle = '#555';
-            ctx.lineWidth = 5 / currentZoom;
+            ctx.lineWidth = 5 / smoothZoom; // Adapter l'épaisseur de la bordure au zoom
             ctx.strokeRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
             food.forEach(f => f.draw(ctx));
@@ -1233,10 +1259,12 @@
                     const currentZoom = Math.max(0.2, 1 - (player.radius - PLAYER_INITIAL_RADIUS) / 500);
                     const visibleWorldWidth = canvas.width / currentZoom;
                     const visibleWorldHeight = canvas.height / currentZoom;
-                    cameraOffset.x = player.x - visibleWorldWidth / 2;
-                    cameraOffset.y = player.y - visibleWorldHeight / 2;
-                    cameraOffset.x = Math.max(0, Math.min(cameraOffset.x, GAME_WIDTH - visibleWorldWidth));
-                    cameraOffset.y = Math.max(0, Math.min(cameraOffset.y, GAME_HEIGHT - visibleWorldHeight));
+                    // Mettre à jour les cibles de la caméra, l'interpolation se fera dans updateGame
+                    smoothCameraOffset.x = player.x - visibleWorldWidth / 2; // Ceci initialise la cible, pas la valeur fluide directement
+                    smoothCameraOffset.y = player.y - visibleWorldHeight / 2;
+                    smoothCameraOffset.x = Math.max(0, Math.min(smoothCameraOffset.x, GAME_WIDTH - visibleWorldWidth));
+                    smoothCameraOffset.y = Math.max(0, Math.min(smoothCameraOffset.y, GAME_HEIGHT - visibleWorldHeight));
+                    smoothZoom = currentZoom; // Initialiser le zoom fluide aussi
                 }
                 drawGame();
             }
