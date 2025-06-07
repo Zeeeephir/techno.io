@@ -541,19 +541,20 @@
                                     .then(() => console.log("Données utilisateur initiales sauvegardées."))
                                     .catch(e => console.error("Erreur lors de la sauvegarde initiale:", e));
                             }
-                            isLoading = false; // Fin du chargement
-                            updateUI(); // Mettre à jour l'UI après le chargement des données
+                            // Moved isLoading = false; updateUI(); from here to outside onAuthStateChanged
                         }, (error) => {
                             console.error("Erreur d'écoute Firestore:", error);
-                            isLoading = false; // Fin du chargement même en cas d'erreur
-                            updateUI(); // Tenter d'afficher l'UI même en cas d'erreur Firestore
+                            // Moved isLoading = false; updateUI(); from here to outside onAuthStateChanged
                         });
                     } else {
                         playerData.userId = null;
                         document.getElementById('user-id-display').textContent = 'Chargement de l\'utilisateur...';
-                        isLoading = false; // Si aucun utilisateur, afficher l'UI quand même
-                        updateUI();
                     }
+
+                    // MARQUEUR DE CORRECTION: Set isLoading to false and update UI AFTER auth state is known
+                    // This ensures the menu is shown regardless of Firestore data loading success/failure immediately.
+                    isLoading = false;
+                    updateUI();
                 });
             } catch (e) {
                 console.error("Erreur lors de l'initialisation de Firebase ou de l'authentification:", e);
