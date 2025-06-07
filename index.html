@@ -13,7 +13,8 @@
         html, body {
             height: 100%;
             margin: 0;
-            overflow: hidden; /* Empêche le défilement global du body, important pour le canvas en plein écran */
+            /* Retire overflow: hidden du body pour permettre un défilement global contrôlé par #app-container */
+            /* Le jeu en plein écran couvrira de toute façon le body quand il est actif */
             background: linear-gradient(to bottom right, #1e0a3b, #4a0e6e); /* Fond dégradé du corps */
         }
         /* Assure que l'application conteneur s'adapte à l'écran et permet le défilement */
@@ -24,7 +25,7 @@
             /* Changement ici: justify-content: flex-start permet au contenu de commencer en haut
                et de pousser vers le bas, activant le défilement si nécessaire */
             justify-content: flex-start;
-            height: 100%; /* S'assure que le conteneur prend 100% de la hauteur du body */
+            height: 100vh; /* Définie la hauteur du conteneur à 100% du viewport */
             width: 100vw;
             background: linear-gradient(to bottom right, #1e0a3b, #4a0e6e);
             position: relative; /* Pour positionner les messages absolus */
@@ -49,6 +50,7 @@
            Elles ne gèrent plus leur propre défilement, c'est #app-container qui le fait. */
         #main-menu, #customize-skins, #shop, #victory-screen, #death-screen {
             display: none; /* Sera géré par JavaScript updateUI() */
+            /* Assurez-vous qu'il n'y a PAS de max-height ou overflow-y: auto ici */
         }
         /* Écran de chargement visible par défaut */
         #loading-screen {
@@ -504,7 +506,7 @@
                         // Assurez-vous que le currentSkin est valide ou réinitialisez-le
                         currentSkin: parsedData.currentSkin && SHOP_SKINS.some(s => s.emoji === parsedData.currentSkin)
                             ? parsedData.currentSkin
-                            : '🎧',
+                            : '�',
                         // Assurez-vous que l'XP et le niveau sont cohérents
                         level: Math.max(1, parsedData.level || 1),
                         xp: Math.max(0, parsedData.xp || 0),
@@ -903,7 +905,7 @@
 
                     if (target) {
                         const botDx = target.x - bot.x;
-                        const botDy = target.y - bot.y;
+                        const botDy = target.y - target.y;
                         const botDistance = Math.sqrt(botDx * botDx + botDy * botDy);
                         const botSpeed = Math.max(1, 3 - (bot.radius / 100)) * currentDifficulty.botSpeedFactor;
 
@@ -1153,3 +1155,4 @@
     </script>
 </body>
 </html>
+�
