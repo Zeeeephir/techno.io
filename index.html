@@ -26,7 +26,7 @@
             background: linear-gradient(to bottom right, #1e0a3b, #4a0e6e);
             position: relative; /* Pour positionner les messages absolus */
         }
-        /* Conteneur du jeu en plein écran, caché par défaut */
+        /* Conteneur du jeu en plein écran, caché par default */
         #game-canvas-container {
             position: fixed; /* Fixe le conteneur du jeu sur tout l'écran */
             inset: 0;
@@ -227,19 +227,12 @@
 
     </div>
 
-    <!-- Firebase SDKs -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // --- Plus de Firebase ! Utilisation de localStorage pour la sauvegarde locale ---
 
-        // Variables globales fournies par l'environnement Canvas
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        // Initialisation de Firebase (doit être fait une seule fois au niveau global du module)
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-techno-io-app';
+        // L'ID d'application est toujours utilisé pour l'organisation interne du code,
+        // même sans Firebase actif pour la persistance.
+        const appId = "techno-io-game"; 
 
         // Constantes du jeu
         const GAME_WIDTH = 3000;
@@ -253,7 +246,7 @@
             { id: 'skin1', emoji: '🎧', name: 'Casque Pro', cost: 0 },
             { id: 'skin2', emoji: '🎤', name: 'Micro Vintage', cost: 100 },
             { id: 'skin3', emoji: '🔊', name: 'Grosse Enceinte', cost: 250 },
-            { id: 'skin4', emoji: '🎶', name: 'Note de Musique', cost: 500 },
+            { id: 'skin4', emoji: '🎶', name: 'Note de Musique', cost: 500 }, // Remplacé "?" par "🎶" pour une meilleure cohérence
             { id: 'skin5', emoji: '💿', name: 'Vinyle Doré', cost: 1000 },
             { id: 'skin6', emoji: '🎛️', name: 'Table de Mixage', cost: 2000 },
         ];
@@ -265,9 +258,9 @@
             level: 1,
             xp: 0,
             gold: 0,
-            currentSkin: '🎧',
+            currentSkin: '�',
             ownedSkins: ['🎧'],
-            userId: null,
+            userId: 'local-player', // Utilisateur local par défaut pour l'affichage
         };
         let difficulty = 'normal';
         let isLoading = true; // Pour l'écran de chargement initial
@@ -322,13 +315,8 @@
             document.getElementById('user-id-display').style.display = 'none';
             document.getElementById('message-display').classList.add('hidden'); // S'assurer que le message est masqué par défaut
 
-            // Afficher l'écran de chargement si `isLoading` est vrai
-            if (isLoading) {
-                document.getElementById('loading-screen').style.display = 'flex';
-                return; // Arrêter ici, seul l'écran de chargement est visible
-            } else {
-                document.getElementById('loading-screen').style.display = 'none'; // Cacher l'écran de chargement une fois non isLoading
-            }
+            // L'écran de chargement ne devrait plus être visible après le démarrage initial du jeu local
+            document.getElementById('loading-screen').style.display = 'none';
 
             // Afficher les éléments globaux du haut si ce n'est pas la page de jeu
             if (currentPage !== 'game') {
@@ -346,6 +334,8 @@
                     document.getElementById('player-gold').textContent = playerData.gold;
                     document.getElementById('current-skin-display').textContent = playerData.currentSkin;
                     document.getElementById('difficulty-select').value = difficulty;
+                    document.getElementById('user-id-display').innerHTML = `ID Session: <span class="font-mono bg-gray-700 px-2 py-1 rounded">${playerData.userId}</span>`;
+
                     break;
                 case 'customize':
                     document.getElementById('customize-skins').style.display = 'block';
@@ -488,107 +478,74 @@
             updateUI();
         }
 
-        // --- Firebase Logic ---
-        let unsubscribeFirestore = null; // Pour nettoyer l'écouteur Firestore
+        // --- Fonctions de sauvegarde avec localStorage ---
+        const LOCAL_STORAGE_KEY = 'technoIoPlayerData';
 
-        async function initFirebaseAndListen() {
+        function loadPlayerData() {
             try {
-                // Tenter de se connecter avec un jeton personnalisé si disponible, sinon anonymement
-                if (typeof __initial_auth_token !== 'undefined') {
-                    await signInWithCustomToken(auth, __initial_auth_token);
+                const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+                if (savedData) {
+                    const parsedData = JSON.parse(savedData);
+                    // Fusionner les données sauvegardées avec les valeurs par défaut
+                    playerData = {
+                        ...playerData, // Garde les valeurs par défaut pour les propriétés non sauvegardées
+                        ...parsedData, // Écrase avec les valeurs sauvegardées
+                        // Assurez-vous que ownedSkins est un tableau et contient au moins le skin par défaut
+                        ownedSkins: Array.isArray(parsedData.ownedSkins) && parsedData.ownedSkins.length > 0
+                            ? [...new Set(parsedData.ownedSkins).add('🎧')] // Ajoute '🎧' si absent
+                            : ['🎧'],
+                        // Assurez-vous que le currentSkin est valide ou réinitialisez-le
+                        currentSkin: parsedData.currentSkin && SHOP_SKINS.some(s => s.emoji === parsedData.currentSkin)
+                            ? parsedData.currentSkin
+                            : '🎧',
+                        // Assurez-vous que l'XP et le niveau sont cohérents
+                        level: Math.max(1, parsedData.level || 1),
+                        xp: Math.max(0, parsedData.xp || 0),
+                        gold: Math.max(0, parsedData.gold || 0),
+                    };
+                    console.log("Données utilisateur chargées depuis localStorage :", playerData);
                 } else {
-                    await signInAnonymously(auth);
+                    console.log("Pas de données utilisateur sauvegardées, utilisation des valeurs par défaut.");
+                    // Sauvegarder les données par défaut initiales pour la première fois
+                    savePlayerData(playerData);
                 }
-
-                // Écouteur de l'état d'authentification Firebase
-                onAuthStateChanged(auth, (user) => {
-                    // Nettoyer l'ancien listener Firestore avant d'en configurer un nouveau
-                    if (unsubscribeFirestore) {
-                        unsubscribeFirestore();
-                        unsubscribeFirestore = null;
-                    }
-
-                    if (user) {
-                        playerData.userId = user.uid;
-                        document.getElementById('user-id-display').innerHTML = `ID Utilisateur: <span class="font-mono bg-gray-700 px-2 py-1 rounded">${playerData.userId}</span>`;
-
-                        const userDocRef = doc(db, `artifacts/${appId}/users/${playerData.userId}/gameData`, 'userData');
-
-                        unsubscribeFirestore = onSnapshot(userDocRef, (docSnap) => {
-                            if (docSnap.exists()) {
-                                const data = docSnap.data();
-                                playerData = {
-                                    ...playerData,
-                                    nickname: data.nickname || playerData.nickname,
-                                    level: data.level || playerData.level,
-                                    xp: data.xp || playerData.xp,
-                                    gold: data.gold || playerData.gold,
-                                    currentSkin: data.currentSkin || playerData.currentSkin,
-                                    ownedSkins: data.ownedSkins || playerData.ownedSskins,
-                                };
-                                console.log("Données utilisateur chargées:", playerData);
-                            } else {
-                                console.log("Création des données utilisateur initiales.");
-                                const initialSaveData = {
-                                    nickname: playerData.nickname,
-                                    level: playerData.level,
-                                    xp: playerData.xp,
-                                    gold: playerData.gold,
-                                    currentSkin: playerData.currentSkin,
-                                    ownedSkins: playerData.ownedSkins,
-                                };
-                                setDoc(userDocRef, initialSaveData)
-                                    .then(() => console.log("Données utilisateur initiales sauvegardées."))
-                                    .catch(e => console.error("Erreur lors de la sauvegarde initiale:", e));
-                            }
-                            // Moved isLoading = false; updateUI(); from here to outside onAuthStateChanged
-                        }, (error) => {
-                            console.error("Erreur d'écoute Firestore:", error);
-                            // Moved isLoading = false; updateUI(); from here to outside onAuthStateChanged
-                        });
-                    } else {
-                        playerData.userId = null;
-                        document.getElementById('user-id-display').textContent = 'Chargement de l\'utilisateur...';
-                    }
-
-                    // MARQUEUR DE CORRECTION: Set isLoading to false and update UI AFTER auth state is known
-                    // This ensures the menu is shown regardless of Firestore data loading success/failure immediately.
-                    isLoading = false;
-                    updateUI();
-                });
             } catch (e) {
-                console.error("Erreur lors de l'initialisation de Firebase ou de l'authentification:", e);
-                showMessage("Erreur lors de l'initialisation. Veuillez recharger la page.");
-                isLoading = false; // S'assurer que l'écran de chargement est masqué même en cas d'erreur majeure
-                updateUI(); // Afficher l'UI à l'utilisateur même si Firebase échoue
+                console.error("Erreur lors du chargement des données depuis localStorage :", e);
+                showMessage("Erreur de chargement des données locales. Les données seront réinitialisées.");
+                // Nettoyer les données corrompues si une erreur survient
+                localStorage.removeItem(LOCAL_STORAGE_KEY);
             }
         }
 
-        async function savePlayerData(dataToSave) {
-            if (!playerData.userId) {
-                console.warn("Impossible de sauvegarder : userId manquant.");
-                return;
-            }
-            const userDocRef = doc(db, `artifacts/${appId}/users/${playerData.userId}/gameData`, 'userData');
+        function savePlayerData() {
             try {
-                await setDoc(userDocRef, dataToSave, { merge: true });
-                console.log("Données utilisateur sauvegardées avec succès.");
+                // S'assurer que les données sont propres avant de sauvegarder (e.g. ownedSkins)
+                const dataToSave = {
+                    nickname: playerData.nickname,
+                    level: playerData.level,
+                    xp: playerData.xp,
+                    gold: playerData.gold,
+                    currentSkin: playerData.currentSkin,
+                    ownedSkins: [...new Set(playerData.ownedSkins)], // Enlever les doublons
+                };
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
+                console.log("Données utilisateur sauvegardées dans localStorage :", dataToSave);
             } catch (e) {
-                console.error("Erreur lors de la sauvegarde des données utilisateur:", e);
-                showMessage("Erreur de sauvegarde des données. Veuillez réessayer.");
+                console.error("Erreur lors de la sauvegarde des données dans localStorage :", e);
+                showMessage("Erreur de sauvegarde des données. L'espace de stockage pourrait être plein.");
             }
         }
 
-        // --- Handlers UI ---
+        // --- Handlers UI (adaptés pour localStorage) ---
         function handleNicknameChange(e) {
             const newNickname = e.target.value;
             playerData.nickname = newNickname;
-            savePlayerData({ nickname: newNickname });
+            savePlayerData(); // Sauvegarde automatique
         }
 
         function handleSkinSelect(emoji) {
             playerData.currentSkin = emoji;
-            savePlayerData({ currentSkin: emoji });
+            savePlayerData(); // Sauvegarde automatique
             showMessage(`Skin "${SHOP_SKINS.find(s => s.emoji === emoji)?.name}" sélectionné !`);
             setCurrentPageAndRender('menu');
         }
@@ -597,7 +554,7 @@
             if (playerData.gold >= skin.cost) {
                 playerData.gold -= skin.cost;
                 playerData.ownedSkins.push(skin.emoji);
-                savePlayerData({ gold: playerData.gold, ownedSkins: playerData.ownedSkins });
+                savePlayerData(); // Sauvegarde automatique
                 showMessage(`"${skin.name}" acheté pour ${skin.cost} or !`);
                 renderShop(); // Re-render the shop to update display
             } else {
@@ -635,7 +592,7 @@
             playerData.gold += goldEarned;
             playerData.level = Math.floor(playerData.xp / 100) + 1;
 
-            savePlayerData({ xp: playerData.xp, gold: playerData.gold, level: playerData.level });
+            savePlayerData(); // Sauvegarde automatique après la fin du jeu
             lastGameRewards = { xp: xpEarned, gold: goldEarned, isWinner: isPlayerWinner, kills: playerKills, finalRank: finalRank };
 
             if (isPlayerWinner) {
@@ -966,7 +923,7 @@
                             otherPlayer.radius /= 2;
                             otherPlayer.updateMass();
                             missile.isAlive = false;
-                            console.log(`Missile a touché ${otherPlayer.name}, sa taille est réduite à ${otherPlayer.radius.toFixed(2)}`);
+                            console.log(`Missile a touché ${otherPlayer.name}, sa taille est réduite à ${otherPlayer.radius.toFixed(0)}`);
                         }
                     }
                 });
@@ -1120,21 +1077,12 @@
             fullscreenButton.onclick = toggleFullscreen;
 
 
-            // Initialiser Firebase et l'UI
-            // La fonction initFirebaseAndListen() appelle updateUI() une fois Firebase prêt.
-            initFirebaseAndListen();
+            // Charger les données du jeu (maintenant avec localStorage)
+            loadPlayerData();
+            isLoading = false; // Marquer le chargement comme terminé
+            updateUI(); // Afficher l'UI principale
 
-            // Safety net: Force UI update after a short delay, even if Firebase takes longer
-            // This ensures the loading screen doesn't get stuck and the menu appears.
-            setTimeout(() => {
-                if (isLoading) { // Only if still stuck on loading
-                    isLoading = false;
-                    updateUI();
-                    console.log("Forced UI update after timeout as Firebase was still loading or had issues.");
-                }
-            }, 3000); // 3 seconds timeout
-
-            // Initialisation du canvas (these lines can stay)
+            // Initialisation du canvas
             canvas = document.getElementById('game-canvas');
             ctx = canvas.getContext('2d');
         };
@@ -1165,3 +1113,4 @@
     </script>
 </body>
 </html>
+�
