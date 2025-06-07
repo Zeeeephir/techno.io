@@ -25,7 +25,7 @@
             width: 100vw;
             background: linear-gradient(to bottom right, #1e0a3b, #4a0e6e);
             position: relative; /* Pour positionner les messages absolus */
-            overflow-y: auto; /* Permet le défilement vertical du conteneur principal si le contenu dépasse */
+            /* Removed overflow-y: auto from here, now it's on individual menu sections */
             padding-top: 20px; /* Ajoute un peu d'espace en haut pour le confort */
             padding-bottom: 20px; /* Ajoute un peu d'espace en bas pour le confort */
         }
@@ -45,6 +45,8 @@
         /* Styles pour les sections, masquées par défaut en HTML pour éviter le FOUC, mais contrôlées par JS */
         #main-menu, #customize-skins, #shop, #victory-screen, #death-screen {
             display: none; /* Sera géré par JavaScript updateUI() */
+            max-height: 90vh; /* Permet à la section de défiler si son contenu est trop grand */
+            overflow-y: auto; /* Active le défilement vertical pour la section si nécessaire */
         }
         /* Écran de chargement visible par défaut */
         #loading-screen {
@@ -163,9 +165,8 @@
         <!-- Section Personnaliser Skins -->
         <div id="customize-skins" class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-lg text-center border border-purple-700">
             <h2 class="text-4xl font-bold mb-6 text-purple-400">Personnaliser Votre DJ</h2>
-            <div id="customize-scroll-container" class="max-h-96 overflow-y-auto mb-6"> <!-- Ajouté pour le défilement -->
-                <div id="skins-grid" class="grid grid-cols-3 gap-4"></div>
-            </div>
+            <!-- Le défilement est géré par la section parente #customize-skins -->
+            <div id="skins-grid" class="grid grid-cols-3 gap-4 mb-6"></div>
             <button id="customize-back-button" class="w-full bg-gradient-to-r from-gray-600 to-gray-800 text-white text-xl font-semibold py-3 rounded-xl shadow-md hover:from-gray-700 hover:to-gray-900 transition-all duration-300 transform hover:scale-105 border border-gray-500">
                 Retour au Menu
             </button>
@@ -175,10 +176,9 @@
         <div id="shop" class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-lg text-center border border-purple-700">
             <h2 class="text-4xl font-bold mb-6 text-purple-400">Boutique de Skins</h2>
             <p class="text-xl mb-6 text-yellow-400">Votre Or: <span id="shop-player-gold" class="font-bold"></span></p>
-            <div id="shop-scroll-container" class="max-h-96 overflow-y-auto mb-6"> <!-- Ajouté pour le défilement -->
-                <div id="shop-skins-grid" class="grid grid-cols-2 gap-4"></div>
-                <p id="shop-no-skins-message" class="text-lg text-gray-300 hidden">Vous possédez déjà tous les skins disponibles !</p>
-            </div>
+            <!-- Le défilement est géré par la section parente #shop -->
+            <div id="shop-skins-grid" class="grid grid-cols-2 gap-4 mb-6"></div>
+            <p id="shop-no-skins-message" class="text-lg text-gray-300 hidden">Vous possédez déjà tous les skins disponibles !</p>
             <button id="shop-back-button" class="w-full bg-gradient-to-r from-gray-600 to-gray-800 text-white text-xl font-semibold py-3 rounded-xl shadow-md hover:from-gray-700 hover:to-gray-900 transition-all duration-300 transform hover:scale-105 border border-gray-500">
                 Retour au Menu
             </button>
@@ -253,7 +253,7 @@
             { id: 'skin1', emoji: '🎧', name: 'Casque Pro', cost: 0 },
             { id: 'skin2', emoji: '🎤', name: 'Micro Vintage', cost: 100 },
             { id: 'skin3', emoji: '🔊', name: 'Grosse Enceinte', cost: 250 },
-            { id: 'skin4', emoji: '🎶', name: 'Note de Musique', cost: 500 }, // Remplacé "?" par "🎶" pour une meilleure cohérence
+            { id: 'skin4', emoji: '🎶', name: 'Note de Musique', cost: 500 },
             { id: 'skin5', emoji: '💿', name: 'Vinyle Doré', cost: 1000 },
             { id: 'skin6', emoji: '🎛️', name: 'Table de Mixage', cost: 2000 },
         ];
@@ -292,9 +292,9 @@
 
         // Config de difficulté
         const difficultySettings = {
-            easy: { botSpeedFactor: 0.8, botGrowthFactor: 0.7, botAggressionRadius: 100 },
-            normal: { botSpeedFactor: 1, botGrowthFactor: 1, botAggressionRadius: 150 },
-            hard: { botSpeedFactor: 1.2, botGrowthFactor: 1.3, botAggressionRadius: 200 },
+            easy: { botSpeedFactor: 0.8, botGrowthFactor: 0.7, botAggressionRadius: 120, botMissileCooldown: 7000 },
+            normal: { botSpeedFactor: 1, botGrowthFactor: 1, botAggressionRadius: 180, botMissileCooldown: 5000 },
+            hard: { botSpeedFactor: 1.2, botGrowthFactor: 1.3, botAggressionRadius: 250, botMissileCooldown: 3000 },
         };
 
         // --- Fonctions utilitaires UI ---
@@ -622,6 +622,8 @@
                 this.velocity = { x: 0, y: 0 };
                 this.mass = Math.PI * radius * radius;
                 this.isAlive = true;
+                this.lastMissileFireTime = 0; // Ajouté pour le cooldown des missiles des bots
+                this.missileCooldownDuration = 0; // Durée du cooldown, sera définie par difficulté
             }
 
             updateMass() {
@@ -732,7 +734,10 @@
                 const botX = Math.random() * (GAME_WIDTH - botRadius * 2) + botRadius;
                 const botY = Math.random() * (GAME_HEIGHT - botRadius * 2) + botRadius;
                 const randomSkin = SHOP_SKINS[Math.floor(Math.random() * SHOP_SKINS.length)].emoji;
-                players.push(new Circle(botX, botY, botRadius, randomSkin, `Bot ${i + 1}`));
+                const bot = new Circle(botX, botY, botRadius, randomSkin, `Bot ${i + 1}`);
+                // Définir le cooldown du missile pour chaque bot en fonction de la difficulté
+                bot.missileCooldownDuration = difficultySettings[difficulty].botMissileCooldown; 
+                players.push(bot);
             }
 
             for (let i = 0; i < FOOD_COUNT; i++) {
@@ -822,7 +827,7 @@
                 return;
             }
 
-            // Mettre à jour le cooldown du missile
+            // Mettre à jour le cooldown du missile du joueur
             const now = Date.now();
             const elapsed = now - lastMissileFireTime;
             const remaining = Math.max(0, 30000 - elapsed);
@@ -867,6 +872,7 @@
                     let shortestDistance = Infinity;
                     const currentDifficulty = difficultySettings[difficulty];
 
+                    // Comportement des bots : cibler la nourriture ou les plus petits joueurs
                     food.forEach(f => {
                         const dist = Math.sqrt(Math.pow(bot.x - f.x, 2) + Math.pow(bot.y - f.y, 2));
                         if (dist < shortestDistance) {
@@ -876,19 +882,21 @@
                     });
 
                     players.forEach(other => {
-                        if (other.isAlive && other !== bot && other.radius * 1.1 < bot.radius) {
+                        if (other.isAlive && other !== bot) {
                             const dist = Math.sqrt(Math.pow(bot.x - other.x, 2) + Math.pow(bot.y - other.y, 2));
-                            if (dist < shortestDistance && dist < currentDifficulty.botAggressionRadius) {
-                                shortestDistance = dist;
-                                target = other;
-                            }
-                        } else if (other.isAlive && other !== bot && other.radius * 1.1 > bot.radius) {
-                            const dist = Math.sqrt(Math.pow(bot.x - other.x, 2) + Math.pow(bot.y - other.y, 2));
-                            if (dist < bot.radius * 5) {
-                                const angle = Math.atan2(bot.y - other.y, bot.x - other.x);
-                                bot.velocity.x = Math.cos(angle) * (2 + currentDifficulty.botSpeedFactor);
-                                bot.velocity.y = Math.sin(angle) * (2 + currentDifficulty.botSpeedFactor);
-                                target = null;
+
+                            if (other.radius * 1.1 < bot.radius) { // Cible plus petite que le bot
+                                if (dist < shortestDistance && dist < currentDifficulty.botAggressionRadius) {
+                                    shortestDistance = dist;
+                                    target = other; // Prioriser les plus petits joueurs à manger
+                                }
+                            } else if (other.radius * 1.1 > bot.radius) { // Cible plus grande que le bot
+                                if (dist < bot.radius * 5) { // Si un plus grand est proche, fuir
+                                    const angle = Math.atan2(bot.y - other.y, bot.x - other.x);
+                                    bot.velocity.x = Math.cos(angle) * (2 + currentDifficulty.botSpeedFactor);
+                                    bot.velocity.y = Math.sin(angle) * (2 + currentDifficulty.botSpeedFactor);
+                                    target = null; // Ne pas cibler la nourriture en fuyant
+                                }
                             }
                         }
                     });
@@ -904,6 +912,7 @@
                             bot.velocity.y = (botDy / botDistance) * botSpeed;
                         }
                     } else {
+                        // Mouvement aléatoire si pas de cible
                         bot.velocity.x += (Math.random() - 0.5) * 0.1;
                         bot.velocity.y += (Math.random() - 0.5) * 0.1;
                     }
@@ -917,6 +926,30 @@
 
                     bot.x = Math.max(bot.radius, Math.min(bot.x, GAME_WIDTH - bot.radius));
                     bot.y = Math.max(bot.radius, Math.min(bot.y, GAME_HEIGHT - bot.radius));
+
+                    // Logique de tir de missile pour les bots
+                    if (now - bot.lastMissileFireTime > bot.missileCooldownDuration) {
+                        let targetForMissile = null;
+                        let minMissileDistance = Infinity;
+                        const missileFiringRange = bot.radius * 7; // Les bots peuvent tirer des missiles à une distance de 7 fois leur rayon
+
+                        players.forEach(other => {
+                            // Les bots ciblent les joueurs ou les autres bots plus petits
+                            if (other.isAlive && other !== bot && other.radius * 1.05 < bot.radius) { // Cible légèrement plus petite
+                                const dist = Math.sqrt(Math.pow(bot.x - other.x, 2) + Math.pow(bot.y - other.y, 2));
+                                if (dist < missileFiringRange && dist < minMissileDistance) {
+                                    minMissileDistance = dist;
+                                    targetForMissile = other;
+                                }
+                            }
+                        });
+
+                        if (targetForMissile) {
+                            missiles.push(new Missile(bot.x, bot.y, targetForMissile.x, targetForMissile.y));
+                            bot.lastMissileFireTime = now;
+                            // console.log(`Bot ${bot.name} a tiré un missile sur ${targetForMissile.name}`); // Débogage
+                        }
+                    }
                 }
             });
 
@@ -924,10 +957,10 @@
                 missile.update();
 
                 players.forEach(otherPlayer => {
-                    if (missile.isAlive && otherPlayer.isAlive && !otherPlayer.isPlayer) {
+                    if (missile.isAlive && otherPlayer.isAlive && !otherPlayer.isPlayer) { // Les missiles ne peuvent pas toucher le joueur humain, uniquement les bots
                         const dist = Math.sqrt(Math.pow(missile.x - otherPlayer.x, 2) + Math.pow(missile.y - otherPlayer.y, 2));
                         if (dist < missile.radius + otherPlayer.radius) {
-                            otherPlayer.radius /= 2;
+                            otherPlayer.radius = Math.max(10, otherPlayer.radius / 2); // Réduit la taille, avec un minimum pour éviter les bots invisibles
                             otherPlayer.updateMass();
                             missile.isAlive = false;
                             console.log(`Missile a touché ${otherPlayer.name}, sa taille est réduite à ${otherPlayer.radius.toFixed(0)}`);
